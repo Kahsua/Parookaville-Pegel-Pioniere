@@ -267,8 +267,8 @@
   // PIN vor dem Festival ändern und nur an eure Crew geben
   const EDIT_PIN = "2026";
   const STORAGE_KEY = "leaderboard";
-  // Nach dem Setup (siehe unten) hier die Bucket-ID eintragen, z.B. "Fd55uogXyxYdnXJvnyN8Xo"
-  const BUCKET_ID = "QDC4szdYovJXLYp6VTWKPQ";
+  // Eure Firebase Realtime Database URL (ohne "/leaderboard" o.ä. am Ende)
+  const FIREBASE_URL = "https://parookaville-baf4d-default-rtdb.europe-west1.firebasedatabase.app";
 
   const listEl = document.getElementById('list');
   const form = document.getElementById('entryForm');
@@ -287,8 +287,7 @@
   let entries = [];
   let loaded = false;
   let unlocked = false;
-  let activeBucket = BUCKET_ID;
-  const storageAvailable = activeBucket !== "";
+  const storageAvailable = FIREBASE_URL !== "";
 
   unlockBtn.addEventListener('click', () => {
     unlockBtn.style.display = 'none';
@@ -326,56 +325,23 @@
     box.style.padding = '20px 16px';
     box.style.textAlign = 'left';
     box.innerHTML = `
-      <div style="font-weight:800; color:var(--lime); margin-bottom:8px;">Einmaliges Setup nötig</div>
-      <div style="margin-bottom:12px;">Gib eine <b>echte</b> E-Mail-Adresse ein (nur für die kostenlose, einmalige
-      Bestätigung – kein Bezahlen, kein Dashboard-Konto nötig). Danach bekommst du eine Bucket-ID.</div>
-      <input type="email" id="setupEmail" placeholder="deine.email@beispiel.de"
-        style="width:100%; box-sizing:border-box; background:#140f1e; border:1px solid var(--line); border-radius:10px;
-        color:var(--text); padding:12px 10px; font-size:15px; margin-bottom:10px;">
-      <button type="button" id="setupBtn" class="unlock-btn" style="border-color:var(--lime); color:var(--lime); margin-bottom:10px;">Speicher jetzt einrichten</button>
-      <div id="setupResult" style="font-size:13px; color:var(--muted); word-break:break-all;"></div>
+      <div style="font-weight:800; color:var(--lime); margin-bottom:8px;">Kein Speicher eingerichtet</div>
+      <div>Es fehlt die FIREBASE_URL im Code. Bitte an Claude schicken, damit sie eingebaut wird.</div>
     `;
     listEl.parentNode.insertBefore(box, listEl);
-    document.getElementById('setupBtn').addEventListener('click', async () => {
-      const resultEl = document.getElementById('setupResult');
-      const email = document.getElementById('setupEmail').value.trim();
-      if(!email || !email.includes('@')){
-        resultEl.textContent = "Bitte eine gültige E-Mail-Adresse eingeben.";
-        return;
-      }
-      resultEl.textContent = "Erstelle Speicher …";
-      try{
-        const res = await fetch('https://kvdb.io/', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: 'email=' + encodeURIComponent(email)
-        });
-        const bucketId = (await res.text()).trim();
-        if(!bucketId || bucketId.length > 60){ throw new Error('unexpected response'); }
-        activeBucket = bucketId;
-        resultEl.innerHTML = 'Bucket-ID: <b style="color:var(--lime);">' + bucketId
-          + '</b><br><br>⚠️ Jetzt Postfach (auch Spam-Ordner) checken und den Bestätigungslink von kvdb.io anklicken. '
-          + 'Erst danach funktioniert das Speichern. Bucket-ID danach an Claude schicken, damit sie fest eingebaut wird.';
-        loadEntries();
-      }catch(e){
-        resultEl.textContent = "Setup fehlgeschlagen, nochmal versuchen.";
-      }
-    });
   }
 
   async function loadEntries(){
-    if(!activeBucket){
+    if(!storageAvailable){
       loaded = true;
       render();
       return;
     }
     try{
-      const res = await fetch('https://kvdb.io/' + activeBucket + '/' + STORAGE_KEY);
-      if(res.status === 404){
-        entries = [];
-      }else if(res.ok){
-        const text = await res.text();
-        entries = text ? JSON.parse(text) : [];
+      const res = await fetch(`${FIREBASE_URL}/${STORAGE_KEY}.json?t=${Date.now()}`);
+      if(res.ok){
+        const data = await res.json();
+        entries = Array.isArray(data) ? data : (data ? Object.values(data) : []);
       }
     }catch(e){
       // Netzwerkfehler: alten Stand behalten, kein Absturz
@@ -385,11 +351,11 @@
   }
 
   async function saveEntries(){
-    if(!activeBucket){ showError("Kein Speicher eingerichtet (Setup fehlt)."); return false; }
+    if(!storageAvailable){ showError("Kein Speicher eingerichtet (Setup fehlt)."); return false; }
     try{
-      const res = await fetch('https://kvdb.io/' + activeBucket + '/' + STORAGE_KEY, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain' },
+      const res = await fetch(`${FIREBASE_URL}/${STORAGE_KEY}.json`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(entries)
       });
       if(!res.ok){
@@ -453,12 +419,12 @@
 
     submitBtn.disabled = true;
     try{
-      if(activeBucket){
+      if(storageAvailable){
         // frischesten Stand holen, bevor wir schreiben (mehrere Handys im Einsatz)
-        const res = await fetch('https://kvdb.io/' + activeBucket + '/' + STORAGE_KEY).catch(() => null);
+        const res = await fetch(`${FIREBASE_URL}/${STORAGE_KEY}.json?t=${Date.now()}`).catch(() => null);
         if(res && res.ok){
-          const text = await res.text();
-          entries = text ? JSON.parse(text) : entries;
+          const data = await res.json();
+          entries = Array.isArray(data) ? data : (data ? Object.values(data) : entries);
         }
       }
       entries.push({ name, promille, ts: Date.now() });
