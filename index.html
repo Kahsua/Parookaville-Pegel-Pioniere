@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>Parookaville · Promille-Bestenliste</title>
+<style>
+  :root{
+    --bg:#120e1a;
+    --bg-panel:#1c1526;
+    --lime:#d4ff3d;
+    --pink:#ff3d7a;
+    --gold:#ffd23d;
+    --text:#f2eee8;
+    --muted:#8f87a0;
+    --line:#332a45;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:
+      radial-gradient(circle at 15% 0%, rgba(212,255,61,0.10), transparent 45%),
+      radial-gradient(circle at 85% 15%, rgba(255,61,122,0.14), transparent 45%),
+      var(--bg);
+    color:var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    min-height:100vh;
+    padding-bottom:120px;
+  }
+  header{
+    padding:32px 20px 18px;
+    text-align:center;
+  }
+  .eyebrow{
+    font-size:12px;
+    letter-spacing:0.28em;
+    text-transform:uppercase;
+    color:var(--pink);
+    font-weight:700;
+    margin-bottom:8px;
+  }
+  h1{
+    margin:0;
+    font-size:38px;
+    font-weight:900;
+    letter-spacing:0.02em;
+    line-height:1;
+    color:var(--lime);
+    text-shadow:0 0 22px rgba(212,255,61,0.35);
+  }
+  .sub{
+    margin-top:10px;
+    color:var(--muted);
+    font-size:14px;
+  }
+
+  main{
+    max-width:520px;
+    margin:0 auto;
+    padding:10px 16px;
+  }
+
+  .status{
+    text-align:center;
+    color:var(--muted);
+    font-size:13px;
+    padding:24px 0;
+  }
+
+  .entry{
+    display:grid;
+    grid-template-columns:38px 1fr auto;
+    align-items:center;
+    gap:12px;
+    background:var(--bg-panel);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:12px 14px;
+    margin-bottom:10px;
+    position:relative;
+    overflow:hidden;
+  }
+  .entry.rank-1{ border-color:rgba(255,210,61,0.6); box-shadow:0 0 24px rgba(255,210,61,0.15); }
+  .entry.rank-2{ border-color:rgba(212,255,61,0.4); }
+  .entry.rank-3{ border-color:rgba(255,61,122,0.35); }
+
+  .rank{
+    font-weight:900;
+    font-size:18px;
+    text-align:center;
+    color:var(--muted);
+  }
+  .rank-1 .rank{ color:var(--gold); font-size:22px; }
+  .rank-2 .rank{ color:var(--lime); }
+  .rank-3 .rank{ color:var(--pink); }
+
+  .name-col{
+    min-width:0;
+  }
+  .name{
+    font-weight:700;
+    font-size:16px;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .bar-track{
+    height:5px;
+    border-radius:3px;
+    background:#0000;
+    background-color:rgba(255,255,255,0.06);
+    margin-top:6px;
+    overflow:hidden;
+  }
+  .bar-fill{
+    height:100%;
+    border-radius:3px;
+    background:linear-gradient(90deg, var(--lime), var(--pink));
+  }
+
+  .promille{
+    font-weight:900;
+    font-size:20px;
+    color:var(--lime);
+    white-space:nowrap;
+  }
+  .promille span{
+    font-size:11px;
+    color:var(--muted);
+    font-weight:600;
+    margin-left:2px;
+  }
+
+  .empty{
+    text-align:center;
+    color:var(--muted);
+    padding:40px 20px;
+    font-size:14px;
+  }
+
+  footer.controls{
+    position:fixed;
+    left:0; right:0; bottom:0;
+    background:linear-gradient(180deg, rgba(18,14,26,0) 0%, var(--bg) 30%);
+    padding:18px 16px 22px;
+  }
+  #entryForm{
+    max-width:520px;
+    margin:0 auto;
+    background:var(--bg-panel);
+    border:1px solid var(--line);
+    border-radius:16px;
+    padding:14px;
+    display:grid;
+    grid-template-columns:1fr 100px auto;
+    gap:8px;
+  }
+  input{
+    background:#140f1e;
+    border:1px solid var(--line);
+    border-radius:10px;
+    color:var(--text);
+    padding:12px 10px;
+    font-size:15px;
+    width:100%;
+  }
+  input::placeholder{ color:var(--muted); }
+  input:focus{ outline:2px solid var(--lime); outline-offset:1px; }
+
+  button{
+    border:none;
+    border-radius:10px;
+    font-weight:800;
+    font-size:15px;
+    cursor:pointer;
+  }
+  .add-btn{
+    background:var(--lime);
+    color:#14100b;
+    padding:0 16px;
+  }
+  .add-btn:active{ transform:scale(0.97); }
+  .add-btn:disabled{ opacity:0.5; }
+
+  .meta-row{
+    max-width:520px;
+    margin:6px auto 0;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    font-size:11px;
+    color:var(--muted);
+    padding:0 4px;
+  }
+  .reset-link{
+    color:var(--muted);
+    background:none;
+    text-decoration:underline;
+    font-size:11px;
+    font-weight:600;
+    padding:4px;
+  }
+  #lockedBar{
+    max-width:520px;
+    margin:0 auto;
+    text-align:center;
+  }
+  .unlock-btn{
+    background:none;
+    border:1px dashed var(--line);
+    color:var(--muted);
+    font-weight:600;
+    font-size:12px;
+    padding:10px 14px;
+    border-radius:10px;
+    width:100%;
+  }
+  .unlock-btn:active{ border-color:var(--lime); color:var(--lime); }
+  #pinForm{
+    display:grid;
+    grid-template-columns:1fr 70px;
+    gap:8px;
+    margin-top:8px;
+  }
+  #pinForm .add-btn{ padding:0; }
+  .error{
+    color:var(--pink);
+    font-size:12px;
+    text-align:center;
+    margin-top:6px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="eyebrow">Parookaville · Feldmessung</div>
+  <h1>PROMILLE-BOARD</h1>
+  <div class="sub">Wer pustet am härtesten? Live-Bestenliste fürs ganze Camp.</div>
+</header>
+
+<main>
+  <div id="list"></div>
+</main>
+
+<footer class="controls">
+  <div id="lockedBar">
+    <button type="button" class="unlock-btn" id="unlockBtn">🔒 Für Crew: Eintragen freischalten</button>
+    <div id="pinForm" style="display:none;">
+      <input id="pinInput" type="password" inputmode="numeric" placeholder="PIN" autocomplete="off">
+      <button type="button" class="add-btn" id="pinSubmitBtn">OK</button>
+    </div>
+  </div>
+  <div id="entryForm" style="display:none;">
+    <input id="nameInput" type="text" placeholder="Name" maxlength="24">
+    <input id="promilleInput" type="text" inputmode="decimal" placeholder="0,00 ‰">
+    <button type="button" class="add-btn" id="submitBtn">+</button>
+  </div>
+  <div class="meta-row">
+    <span id="countLabel">–</span>
+    <button type="button" class="reset-link" id="resetBtn" style="display:none;">Liste leeren</button>
+  </div>
+  <div class="error" id="errorMsg"></div>
+</footer>
+
+<script>
+  const STORAGE_KEY = "leaderboard";
+  // PIN vor dem Festival ändern und nur an eure Crew geben
+  const EDIT_PIN = "2026";
+  // Nach dem Setup (siehe unten) hier die Bucket-ID eintragen, z.B. "Fd55uogXyxYdnXJvnyN8Xo"
+  const BUCKET_ID = "";
+
+  const listEl = document.getElementById('list');
+  const form = document.getElementById('entryForm');
+  const nameInput = document.getElementById('nameInput');
+  const promilleInput = document.getElementById('promilleInput');
+  const submitBtn = document.getElementById('submitBtn');
+  const countLabel = document.getElementById('countLabel');
+  const errorMsg = document.getElementById('errorMsg');
+  const resetBtn = document.getElementById('resetBtn');
+  const lockedBar = document.getElementById('lockedBar');
+  const unlockBtn = document.getElementById('unlockBtn');
+  const pinForm = document.getElementById('pinForm');
+  const pinInput = document.getElementById('pinInput');
+  const pinSubmitBtn = document.getElementById('pinSubmitBtn');
+
+  let entries = [];
+  let loaded = false;
+  let unlocked = false;
+  let activeBucket = BUCKET_ID;
+  const storageAvailable = activeBucket !== "";
+
+  unlockBtn.addEventListener('click', () => {
+    unlockBtn.style.display = 'none';
+    pinForm.style.display = 'grid';
+    pinInput.focus();
+  });
+
+  function checkPin(){
+    if(pinInput.value.trim() === EDIT_PIN){
+      unlocked = true;
+      lockedBar.style.display = 'none';
+      form.style.display = 'grid';
+      resetBtn.style.display = 'inline';
+      nameInput.focus();
+    }else{
+      showError("Falscher PIN.");
+      pinInput.value = '';
+      pinInput.focus();
+    }
+  }
+  pinSubmitBtn.addEventListener('click', checkPin);
+  pinInput.addEventListener('keydown', (ev) => {
+    if(ev.key === 'Enter'){ ev.preventDefault(); checkPin(); }
+  });
+
+  function showError(msg){
+    errorMsg.textContent = msg;
+    if(msg) setTimeout(() => { if(errorMsg.textContent === msg) errorMsg.textContent = ""; }, 4500);
+  }
+
+  function showSetupScreen(){
+    const box = document.createElement('div');
+    box.className = 'status';
+    box.style.color = 'var(--text)';
+    box.style.padding = '20px 16px';
+    box.style.textAlign = 'left';
+    box.innerHTML = `
+      <div style="font-weight:800; color:var(--lime); margin-bottom:8px;">Einmaliges Setup nötig</div>
+      <div style="margin-bottom:12px;">Es ist noch kein Speicher eingerichtet. Klick unten einmal drauf, kopier dir die
+      angezeigte ID und schick sie an Claude zurück, damit sie fest in die Seite eingebaut wird.</div>
+      <button type="button" id="setupBtn" class="unlock-btn" style="border-color:var(--lime); color:var(--lime); margin-bottom:10px;">Speicher jetzt einrichten</button>
+      <div id="setupResult" style="font-size:13px; color:var(--muted); word-break:break-all;"></div>
+    `;
+    listEl.parentNode.insertBefore(box, listEl);
+    document.getElementById('setupBtn').addEventListener('click', async () => {
+      const resultEl = document.getElementById('setupResult');
+      resultEl.textContent = "Erstelle Speicher …";
+      try{
+        const res = await fetch('https://kvdb.io/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: 'email=parookaville-crew@example.com'
+        });
+        const bucketId = (await res.text()).trim();
+        if(!bucketId || bucketId.length > 60){ throw new Error('unexpected response'); }
+        activeBucket = bucketId;
+        resultEl.innerHTML = 'Bucket-ID: <b style="color:var(--lime);">' + bucketId
+          + '</b><br>Diese ID an Claude schicken, dann testen wir direkt weiter (funktioniert für diese Sitzung schon).';
+        loadEntries();
+      }catch(e){
+        resultEl.textContent = "Setup fehlgeschlagen, nochmal versuchen.";
+      }
+    });
+  }
+
+  async function loadEntries(){
+    if(!activeBucket){
+      loaded = true;
+      render();
+      return;
+    }
+    try{
+      const res = await fetch('https://kvdb.io/' + activeBucket + '/' + STORAGE_KEY);
+      if(res.status === 404){
+        entries = [];
+      }else if(res.ok){
+        const text = await res.text();
+        entries = text ? JSON.parse(text) : [];
+      }
+    }catch(e){
+      // Netzwerkfehler: alten Stand behalten, kein Absturz
+    }
+    loaded = true;
+    render();
+  }
+
+  async function saveEntries(){
+    if(!activeBucket) return true;
+    try{
+      const res = await fetch('https://kvdb.io/' + activeBucket + '/' + STORAGE_KEY, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify(entries)
+      });
+      if(!res.ok){ showError("Speichern hat nicht geklappt, nochmal versuchen."); return false; }
+      return true;
+    }catch(e){
+      showError("Verbindung zum Speicher verloren, nochmal versuchen.");
+      return false;
+    }
+  }
+
+  function render(){
+    if(!loaded){
+      listEl.innerHTML = '<div class="status">Lade Bestenliste …</div>';
+      return;
+    }
+    const sorted = [...entries].sort((a,b) => b.promille - a.promille);
+    countLabel.textContent = sorted.length + (sorted.length === 1 ? " Eintrag" : " Einträge");
+
+    if(sorted.length === 0){
+      listEl.innerHTML = '<div class="empty">Noch keiner hat gepustet.<br>Sei der / die Erste.</div>';
+      return;
+    }
+
+    const max = Math.max(...sorted.map(e => e.promille), 0.1);
+    listEl.innerHTML = sorted.map((e, i) => {
+      const rank = i + 1;
+      const rankClass = rank <= 3 ? "rank-" + rank : "";
+      const pct = Math.min(100, (e.promille / max) * 100);
+      const medal = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : rank;
+      return `
+        <div class="entry ${rankClass}">
+          <div class="rank">${medal}</div>
+          <div class="name-col">
+            <div class="name">${escapeHtml(e.name)}</div>
+            <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
+          </div>
+          <div class="promille">${e.promille.toFixed(2)}<span>‰</span></div>
+        </div>`;
+    }).join('');
+  }
+
+  function escapeHtml(str){
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  async function addEntry(){
+    const name = nameInput.value.trim();
+    const raw = promilleInput.value.trim().replace(',', '.');
+    const promille = parseFloat(raw);
+
+    if(!name){ showError("Name fehlt."); nameInput.focus(); return; }
+    if(promilleInput.value.trim() === '' || isNaN(promille)){ showError("Promillewert fehlt."); promilleInput.focus(); return; }
+    if(promille < 0 || promille > 5){ showError("Promillewert prüfen (0–5)."); promilleInput.focus(); return; }
+
+    submitBtn.disabled = true;
+    try{
+      if(activeBucket){
+        // frischesten Stand holen, bevor wir schreiben (mehrere Handys im Einsatz)
+        const res = await fetch('https://kvdb.io/' + activeBucket + '/' + STORAGE_KEY).catch(() => null);
+        if(res && res.ok){
+          const text = await res.text();
+          entries = text ? JSON.parse(text) : entries;
+        }
+      }
+      entries.push({ name, promille, ts: Date.now() });
+      const ok = await saveEntries();
+      if(ok !== false){
+        render();
+        nameInput.value = '';
+        promilleInput.value = '';
+        nameInput.focus();
+      }
+    }catch(e){
+      showError("Eintragen hat nicht geklappt.");
+    }
+    submitBtn.disabled = false;
+  }
+  submitBtn.addEventListener('click', addEntry);
+  promilleInput.addEventListener('keydown', (ev) => {
+    if(ev.key === 'Enter'){ ev.preventDefault(); addEntry(); }
+  });
+  nameInput.addEventListener('keydown', (ev) => {
+    if(ev.key === 'Enter'){ ev.preventDefault(); promilleInput.focus(); }
+  });
+
+  let resetArmed = false;
+  resetBtn.addEventListener('click', async () => {
+    if(!resetArmed){
+      resetArmed = true;
+      resetBtn.textContent = "Wirklich? Nochmal tippen";
+      setTimeout(() => {
+        if(resetArmed){ resetArmed = false; resetBtn.textContent = "Liste leeren"; }
+      }, 4000);
+      return;
+    }
+    resetArmed = false;
+    resetBtn.textContent = "Liste leeren";
+    entries = [];
+    await saveEntries();
+    render();
+  });
+
+  // alle paar Sekunden neu laden, damit Einträge von anderen Handys auftauchen
+  loadEntries().then(() => { if(!activeBucket) showSetupScreen(); });
+  setInterval(() => { if(activeBucket) loadEntries(); }, 5000);
+</script>
+
+</body>
+</html>
