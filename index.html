@@ -316,7 +316,7 @@
 
   function showError(msg){
     errorMsg.textContent = msg;
-    if(msg) setTimeout(() => { if(errorMsg.textContent === msg) errorMsg.textContent = ""; }, 4500);
+    if(msg) setTimeout(() => { if(errorMsg.textContent === msg) errorMsg.textContent = ""; }, 9000);
   }
 
   function showSetupScreen(){
@@ -383,10 +383,15 @@
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify(entries)
       });
-      if(!res.ok){ showError("Speichern hat nicht geklappt, nochmal versuchen."); return false; }
+      if(!res.ok){
+        let detail = '';
+        try{ detail = await res.text(); }catch(e2){}
+        showError("Speichern fehlgeschlagen (Status " + res.status + (detail ? ": " + detail.slice(0,120) : "") + ")");
+        return false;
+      }
       return true;
     }catch(e){
-      showError("Verbindung zum Speicher verloren, nochmal versuchen.");
+      showError("Verbindung zum Speicher verloren: " + (e && e.message ? e.message : "unbekannter Fehler"));
       return false;
     }
   }
