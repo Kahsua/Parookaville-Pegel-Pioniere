@@ -53,11 +53,59 @@
     color:var(--muted);
     font-size:14px;
   }
+  .share-btn{
+    margin-top:16px;
+    background:none;
+    border:1px solid var(--line);
+    color:var(--lime);
+    font-weight:700;
+    font-size:13px;
+    padding:9px 16px;
+    border-radius:999px;
+  }
+  .share-btn:active{ border-color:var(--lime); }
 
   main{
     max-width:520px;
     margin:0 auto;
     padding:10px 16px;
+  }
+
+  .day-filter{
+    display:flex;
+    gap:8px;
+    margin-bottom:14px;
+    align-items:center;
+  }
+  .day-filter input[type="date"]{
+    flex:1;
+    background:var(--bg-panel);
+    border:1px solid var(--line);
+    border-radius:10px;
+    color:var(--text);
+    padding:10px 10px;
+    font-size:14px;
+    color-scheme: dark;
+  }
+  .day-filter input[type="date"]:focus{ outline:2px solid var(--lime); outline-offset:1px; }
+  .day-clear-btn{
+    background:none;
+    border:1px solid var(--line);
+    border-radius:10px;
+    color:var(--muted);
+    font-size:12px;
+    font-weight:700;
+    padding:10px 12px;
+    white-space:nowrap;
+  }
+  .day-clear-btn.active{
+    border-color:var(--lime);
+    color:var(--lime);
+  }
+  .entry-time{
+    font-size:11px;
+    color:var(--muted);
+    margin-top:2px;
   }
 
   .status{
@@ -237,9 +285,14 @@
   <div class="eyebrow">Parookaville · Feldmessung</div>
   <h1>PROMILLE-BOARD</h1>
   <div class="sub">Wer pustet am härtesten? Live-Bestenliste fürs ganze Camp.</div>
+  <button type="button" id="shareBtn" class="share-btn">🔗 Liste teilen</button>
 </header>
 
 <main>
+  <div class="day-filter" id="dayFilterBar">
+    <input type="date" id="dayFilterInput" aria-label="Tag auswählen">
+    <button type="button" id="dayFilterClear" class="day-clear-btn">Alle Tage</button>
+  </div>
   <div id="list"></div>
 </main>
 
@@ -278,6 +331,9 @@
   const countLabel = document.getElementById('countLabel');
   const errorMsg = document.getElementById('errorMsg');
   const resetBtn = document.getElementById('resetBtn');
+  const dayFilterInput = document.getElementById('dayFilterInput');
+  const dayFilterClear = document.getElementById('dayFilterClear');
+  const shareBtn = document.getElementById('shareBtn');
   const lockedBar = document.getElementById('lockedBar');
   const unlockBtn = document.getElementById('unlockBtn');
   const pinForm = document.getElementById('pinForm');
@@ -371,16 +427,36 @@
     }
   }
 
+  function toLocalDateStr(ts){
+    const d = new Date(ts);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  function formatEntryTime(ts){
+    const d = new Date(ts);
+    const weekday = d.toLocaleDateString('de-DE', { weekday: 'short' });
+    const time = d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    return `${weekday} ${time}`;
+  }
+
   function render(){
     if(!loaded){
       listEl.innerHTML = '<div class="status">Lade Bestenliste …</div>';
       return;
     }
-    const sorted = [...entries].sort((a,b) => b.promille - a.promille);
-    countLabel.textContent = sorted.length + (sorted.length === 1 ? " Eintrag" : " Einträge");
+    const activeDay = dayFilterInput.value;
+    const filtered = activeDay ? entries.filter(e => toLocalDateStr(e.ts) === activeDay) : entries;
+    const sorted = [...filtered].sort((a,b) => b.promille - a.promille);
+    countLabel.textContent = sorted.length + (sorted.length === 1 ? " Eintrag" : " Einträge")
+      + (activeDay ? " · gefiltert" : "");
 
     if(sorted.length === 0){
-      listEl.innerHTML = '<div class="empty">Noch keiner hat gepustet.<br>Sei der / die Erste.</div>';
+      listEl.innerHTML = activeDay
+        ? '<div class="empty">An diesem Tag noch keine Einträge.</div>'
+        : '<div class="empty">Noch keiner hat gepustet.<br>Sei der / die Erste.</div>';
       return;
     }
 
@@ -396,10 +472,70 @@
           <div class="name-col">
             <div class="name">${escapeHtml(e.name)}</div>
             <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
+            <div class="entry-time">${e.ts ? formatEntryTime(e.ts) : ''}</div>
           </div>
           <div class="promille">${e.promille.toFixed(2)}<span>‰</span></div>
         </div>`;
     }).join('');
+  }
+
+  dayFilterInput.addEventListener('change', () => {
+    dayFilterClear.classList.toggle('active', dayFilterInput.value !== '');
+    render();
+  });
+  dayFilterClear.addEventListener('click', () => {
+    dayFilterInput.value = '';
+    dayFilterClear.classList.remove('active');
+    render();
+  });
+
+  shareBtn.addEventListener('click', async () => {
+    const shareData = {
+      title: 'Parookaville Promille-Board',
+      text: 'Wer pustet am härtesten? Live-Bestenliste checken 🍻',
+      url: window.location.href
+    };
+    try{
+      if(navigator.share){
+        await navigator.share(shareData);
+      }else if(navigator.clipboard){
+        await navigator.clipboard.writeText(shareData.url);
+        showError("Link kopiert!");
+      }else{
+        showError(shareData.url);
+      }
+    }catch(e){
+      // Nutzer hat den Share-Dialog abgebrochen o.ä. — kein Fehler nötig
+    }
+  });
+
+  function fireConfetti(){
+    const colors = ['#d4ff3d', '#ff3d7a', '#ffd23d', '#ffffff'];
+    const count = 60;
+    for(let i = 0; i < count; i++){
+      const piece = document.createElement('div');
+      const size = 6 + Math.random() * 6;
+      piece.style.position = 'fixed';
+      piece.style.left = (Math.random() * 100) + 'vw';
+      piece.style.top = '-20px';
+      piece.style.width = size + 'px';
+      piece.style.height = (size * 0.4) + 'px';
+      piece.style.background = colors[Math.floor(Math.random() * colors.length)];
+      piece.style.opacity = '0.9';
+      piece.style.borderRadius = '2px';
+      piece.style.zIndex = '9999';
+      piece.style.pointerEvents = 'none';
+      const duration = 1800 + Math.random() * 1400;
+      const rotation = (Math.random() > 0.5 ? 1 : -1) * (360 + Math.random() * 720);
+      const drift = (Math.random() - 0.5) * 200;
+      piece.style.transition = `transform ${duration}ms cubic-bezier(.25,.46,.45,.94), opacity ${duration}ms ease-out`;
+      document.body.appendChild(piece);
+      requestAnimationFrame(() => {
+        piece.style.transform = `translate(${drift}px, 110vh) rotate(${rotation}deg)`;
+        piece.style.opacity = '0';
+      });
+      setTimeout(() => piece.remove(), duration + 100);
+    }
   }
 
   function escapeHtml(str){
@@ -427,10 +563,12 @@
           entries = Array.isArray(data) ? data : (data ? Object.values(data) : entries);
         }
       }
+      const previousMax = entries.reduce((m, e) => Math.max(m, e.promille), 0);
       entries.push({ name, promille, ts: Date.now() });
       const ok = await saveEntries();
       if(ok !== false){
         render();
+        if(promille > previousMax){ fireConfetti(); }
         nameInput.value = '';
         promilleInput.value = '';
         nameInput.focus();
