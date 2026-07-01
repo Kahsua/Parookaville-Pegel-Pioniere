@@ -367,7 +367,11 @@
       }
     });
     if(res.status === 404){ currentSha = null; return []; }
-    if(!res.ok){ throw new Error('Status ' + res.status); }
+    if(!res.ok){
+      let detail = '';
+      try{ detail = (await res.json()).message || ''; }catch(e2){}
+      throw new Error('Lesen fehlgeschlagen (Status ' + res.status + (detail ? ': ' + detail : '') + ')');
+    }
     const data = await res.json();
     currentSha = data.sha;
     return data.content ? JSON.parse(b64DecodeUnicode(data.content)) : [];
@@ -483,7 +487,7 @@
         nameInput.focus();
       }
     }catch(e){
-      showError("Eintragen hat nicht geklappt.");
+      showError((e && e.message) ? e.message : "Eintragen hat nicht geklappt.");
     }
     submitBtn.disabled = false;
   }
