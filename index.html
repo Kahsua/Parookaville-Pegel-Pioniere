@@ -264,11 +264,16 @@
 </footer>
 
 <script>
-  const STORAGE_KEY = "leaderboard";
   // PIN vor dem Festival ändern und nur an eure Crew geben
   const EDIT_PIN = "2026";
-  // Nach dem Setup (siehe unten) hier die Bucket-ID eintragen, z.B. "Fd55uogXyxYdnXJvnyN8Xo"
-  const BUCKET_ID = "";
+  // Euer GitHub-Repo, in dem die Daten als leaderboard.json abgelegt werden
+  const GH_OWNER = "kahsua";
+  const GH_REPO = "Parookaville-Pegel-Pioniere";
+  const GH_BRANCH = "main";
+  const GH_PATH = "leaderboard.json";
+  // Fine-grained Personal Access Token mit "Contents: Read and write" NUR für dieses Repo.
+  // Erstellen unter: https://github.com/settings/tokens?type=beta
+  const GH_TOKEN = "";
 
   const listEl = document.getElementById('list');
   const form = document.getElementById('entryForm');
@@ -287,8 +292,8 @@
   let entries = [];
   let loaded = false;
   let unlocked = false;
-  let activeBucket = BUCKET_ID;
-  const storageAvailable = activeBucket !== "";
+  let currentSha = null;
+  const storageAvailable = GH_TOKEN !== "";
 
   unlockBtn.addEventListener('click', () => {
     unlockBtn.style.display = 'none';
@@ -327,50 +332,51 @@
     box.style.textAlign = 'left';
     box.innerHTML = `
       <div style="font-weight:800; color:var(--lime); margin-bottom:8px;">Einmaliges Setup nötig</div>
-      <div style="margin-bottom:12px;">Gib eine <b>echte</b> E-Mail-Adresse ein (nur für die einmalige Kontobestätigung
-      beim Speicheranbieter, nicht für Gäste sichtbar). Danach bekommst du eine Bucket-ID.</div>
-      <input type="email" id="setupEmail" placeholder="deine.email@beispiel.de"
-        style="width:100%; box-sizing:border-box; background:#140f1e; border:1px solid var(--line); border-radius:10px;
-        color:var(--text); padding:12px 10px; font-size:15px; margin-bottom:10px;">
-      <button type="button" id="setupBtn" class="unlock-btn" style="border-color:var(--lime); color:var(--lime); margin-bottom:10px;">Speicher jetzt einrichten</button>
-      <div id="setupResult" style="font-size:13px; color:var(--muted); word-break:break-all;"></div>
+      <div style="margin-bottom:6px;">Es fehlt noch der Schreib-Zugriff aufs Repo. So geht's (einmalig, ca. 2 Minuten):</div>
+      <ol style="margin:0 0 10px 18px; padding:0; color:var(--muted); font-size:13px; line-height:1.6;">
+        <li>Auf github.com einloggen, dann zu
+          <span style="color:var(--lime);">github.com/settings/tokens?type=beta</span> gehen.</li>
+        <li>"Generate new token" klicken.</li>
+        <li>Bei "Repository access" → "Only select repositories" → euer Repo
+          <b>${GH_REPO}</b> auswählen.</li>
+        <li>Bei "Permissions" → "Repository permissions" → "Contents" auf
+          <b>"Read and write"</b> stellen.</li>
+        <li>Token generieren, den Code (beginnt mit <code>github_pat_...</code>) kopieren.</li>
+        <li>Diesen Token an Claude schicken, damit er fest in die Seite eingebaut wird
+          (oder direkt selbst in Zeile <code>GH_TOKEN</code> der index.html eintragen und neu hochladen).</li>
+      </ol>
+      <div style="font-size:12px; color:var(--muted);">Der Token erlaubt nur Schreibzugriff auf genau dieses eine Repo –
+      nach dem Festival könnt ihr ihn unter github.com/settings/tokens wieder löschen.</div>
     `;
     listEl.parentNode.insertBefore(box, listEl);
-    document.getElementById('setupBtn').addEventListener('click', async () => {
-      const resultEl = document.getElementById('setupResult');
-      const email = document.getElementById('setupEmail').value.trim();
-      if(!email || !email.includes('@')){
-        resultEl.textContent = "Bitte eine gültige E-Mail-Adresse eingeben.";
-        return;
-      }
-      resultEl.textContent = "Erstelle Speicher …";
-      try{
-        const res = await fetch('https://kvdb.io/', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: 'email=' + encodeURIComponent(email)
-        });
-        const bucketId = (await res.text()).trim();
-        if(!bucketId || bucketId.length > 60){ throw new Error('unexpected response'); }
-        activeBucket = bucketId;
-        resultEl.innerHTML = 'Bucket-ID: <b style="color:var(--lime);">' + bucketId
-          + '</b><br><br>⚠️ Jetzt Postfach (auch Spam-Ordner) checken und den Bestätigungslink von kvdb.io anklicken. '
-          + 'Erst danach funktioniert das Speichern von Einträgen. Bucket-ID danach an Claude schicken, damit sie fest eingebaut wird.';
-        loadEntries();
-      }catch(e){
-        resultEl.textContent = "Setup fehlgeschlagen, nochmal versuchen.";
+  }
+
+  function b64EncodeUnicode(str){
+    return btoa(unescape(encodeURIComponent(str)));
+  }
+  function b64DecodeUnicode(str){
+    return decodeURIComponent(escape(atob(str.replace(/\n/g, ''))));
+  }
+
+  async function ghGetFile(){
+    const url = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${GH_PATH}?ref=${GH_BRANCH}`;
+    const res = await fetch(url, {
+      headers: {
+        'Authorization': 'token ' + GH_TOKEN,
+        'Accept': 'application/vnd.github+json'
       }
     });
+    if(res.status === 404){ currentSha = null; return []; }
+    if(!res.ok){ throw new Error('Status ' + res.status); }
+    const data = await res.json();
+    currentSha = data.sha;
+    return data.content ? JSON.parse(b64DecodeUnicode(data.content)) : [];
   }
 
   async function loadEntries(){
-    if(!activeBucket){
-      loaded = true;
-      render();
-      return;
-    }
     try{
-      const res = await fetch('https://kvdb.io/' + activeBucket + '/' + STORAGE_KEY);
+      const url = `https://raw.githubusercontent.com/${GH_OWNER}/${GH_REPO}/${GH_BRANCH}/${GH_PATH}?t=${Date.now()}`;
+      const res = await fetch(url);
       if(res.status === 404){
         entries = [];
       }else if(res.ok){
@@ -385,22 +391,35 @@
   }
 
   async function saveEntries(){
-    if(!activeBucket) return true;
+    if(!storageAvailable){ showError("Kein Schreibzugriff eingerichtet (Setup fehlt)."); return false; }
     try{
-      const res = await fetch('https://kvdb.io/' + activeBucket + '/' + STORAGE_KEY, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify(entries)
+      const url = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${GH_PATH}`;
+      const body = {
+        message: 'Bestenliste aktualisiert',
+        content: b64EncodeUnicode(JSON.stringify(entries)),
+        branch: GH_BRANCH
+      };
+      if(currentSha) body.sha = currentSha;
+      const res = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          'Authorization': 'token ' + GH_TOKEN,
+          'Accept': 'application/vnd.github+json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(body)
       });
       if(!res.ok){
         let detail = '';
-        try{ detail = await res.text(); }catch(e2){}
-        showError("Speichern fehlgeschlagen (Status " + res.status + (detail ? ": " + detail.slice(0,120) : "") + ")");
+        try{ detail = (await res.json()).message || ''; }catch(e2){}
+        showError("Speichern fehlgeschlagen (Status " + res.status + (detail ? ": " + detail : "") + ")");
         return false;
       }
+      const data = await res.json();
+      currentSha = data.content.sha;
       return true;
     }catch(e){
-      showError("Verbindung zum Speicher verloren: " + (e && e.message ? e.message : "unbekannter Fehler"));
+      showError("Verbindung zu GitHub verloren: " + (e && e.message ? e.message : "unbekannter Fehler"));
       return false;
     }
   }
@@ -453,14 +472,8 @@
 
     submitBtn.disabled = true;
     try{
-      if(activeBucket){
-        // frischesten Stand holen, bevor wir schreiben (mehrere Handys im Einsatz)
-        const res = await fetch('https://kvdb.io/' + activeBucket + '/' + STORAGE_KEY).catch(() => null);
-        if(res && res.ok){
-          const text = await res.text();
-          entries = text ? JSON.parse(text) : entries;
-        }
-      }
+      // frischesten Stand + sha holen, bevor wir schreiben (mehrere Handys im Einsatz)
+      entries = await ghGetFile();
       entries.push({ name, promille, ts: Date.now() });
       const ok = await saveEntries();
       if(ok !== false){
@@ -494,14 +507,15 @@
     }
     resetArmed = false;
     resetBtn.textContent = "Liste leeren";
+    try{ await ghGetFile(); }catch(e){}
     entries = [];
     await saveEntries();
     render();
   });
 
-  // alle paar Sekunden neu laden, damit Einträge von anderen Handys auftauchen
-  loadEntries().then(() => { if(!activeBucket) showSetupScreen(); });
-  setInterval(() => { if(activeBucket) loadEntries(); }, 5000);
+  // alle paar Sekunden neu laden, damit Einträge von anderen Handys auftauchen (Lesen geht immer, auch ohne Token)
+  loadEntries().then(() => { if(!storageAvailable) showSetupScreen(); });
+  setInterval(loadEntries, 5000);
 </script>
 
 </body>
