@@ -117,7 +117,7 @@
 
   .entry{
     display:grid;
-    grid-template-columns:38px 1fr auto;
+    grid-template-columns:38px 1fr auto auto;
     align-items:center;
     gap:12px;
     background:var(--bg-panel);
@@ -247,6 +247,43 @@
     font-size:11px;
     font-weight:600;
     padding:4px;
+    margin-left:12px;
+  }
+  #settingsPanel{
+    max-width:520px;
+    margin:0 auto 8px;
+    background:var(--bg-panel);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:12px;
+    display:grid;
+    gap:8px;
+  }
+  #settingsPanel input{
+    background:#140f1e;
+    border:1px solid var(--line);
+    border-radius:10px;
+    color:var(--text);
+    padding:10px 10px;
+    font-size:14px;
+  }
+  #settingsPanel .add-btn{
+    padding:10px;
+  }
+  .delete-btn{
+    background:none;
+    border:none;
+    color:var(--pink);
+    font-size:16px;
+    font-weight:900;
+    padding:4px 8px;
+    line-height:1;
+    flex-shrink:0;
+  }
+  .delete-btn.armed{
+    color:#ffffff;
+    background:var(--pink);
+    border-radius:6px;
   }
   #lockedBar{
     max-width:520px;
@@ -283,8 +320,8 @@
 
 <header>
   <div class="eyebrow">Parookaville · Feldmessung</div>
-  <h1>PROMILLE-BOARD</h1>
-  <div class="sub">Wer pustet am härtesten? Live-Bestenliste fürs ganze Camp.</div>
+  <h1 id="pageTitle">PROMILLE-BOARD</h1>
+  <div class="sub" id="pageSub">Wer pustet am härtesten? Live-Bestenliste fürs ganze Camp.</div>
   <button type="button" id="shareBtn" class="share-btn">🔗 Liste teilen</button>
 </header>
 
@@ -311,7 +348,15 @@
   </div>
   <div class="meta-row">
     <span id="countLabel">–</span>
-    <button type="button" class="reset-link" id="resetBtn" style="display:none;">Liste leeren</button>
+    <div>
+      <button type="button" class="reset-link" id="settingsBtn" style="display:none;">⚙️ Einstellungen</button>
+      <button type="button" class="reset-link" id="resetBtn" style="display:none;">Liste leeren</button>
+    </div>
+  </div>
+  <div id="settingsPanel" style="display:none;">
+    <input id="settingsTitleInput" type="text" placeholder="Überschrift, z.B. PROMILLE-BOARD" maxlength="40">
+    <input id="settingsSubInput" type="text" placeholder="Subline-Text" maxlength="100">
+    <button type="button" class="add-btn" id="settingsSaveBtn">Speichern</button>
   </div>
   <div class="error" id="errorMsg"></div>
 </footer>
@@ -334,6 +379,13 @@
   const dayFilterInput = document.getElementById('dayFilterInput');
   const dayFilterClear = document.getElementById('dayFilterClear');
   const shareBtn = document.getElementById('shareBtn');
+  const settingsBtn = document.getElementById('settingsBtn');
+  const settingsPanel = document.getElementById('settingsPanel');
+  const settingsTitleInput = document.getElementById('settingsTitleInput');
+  const settingsSubInput = document.getElementById('settingsSubInput');
+  const settingsSaveBtn = document.getElementById('settingsSaveBtn');
+  const pageTitle = document.getElementById('pageTitle');
+  const pageSub = document.getElementById('pageSub');
   const lockedBar = document.getElementById('lockedBar');
   const unlockBtn = document.getElementById('unlockBtn');
   const pinForm = document.getElementById('pinForm');
@@ -357,7 +409,9 @@
       lockedBar.style.display = 'none';
       form.style.display = 'grid';
       resetBtn.style.display = 'inline';
+      settingsBtn.style.display = 'inline';
       nameInput.focus();
+      render();
     }else{
       showError("Falscher PIN.");
       pinInput.value = '';
@@ -427,6 +481,64 @@
     }
   }
 
+  async function loadSettings(){
+    if(!storageAvailable) return;
+    try{
+      const res = await fetch(`${FIREBASE_URL}/pageSettings.json?t=${Date.now()}`);
+      if(res.ok){
+        const data = await res.json();
+        if(data && data.title){ pageTitle.textContent = data.title; }
+        if(data && data.subtitle){ pageSub.textContent = data.subtitle; }
+      }
+    }catch(e){
+      // Netzwerkfehler: Standardtexte behalten
+    }
+  }
+
+  async function saveSettings(title, subtitle){
+    if(!storageAvailable){ showError("Kein Speicher eingerichtet."); return false; }
+    try{
+      const res = await fetch(`${FIREBASE_URL}/pageSettings.json`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, subtitle })
+      });
+      if(!res.ok){
+        showError("Speichern der Einstellungen fehlgeschlagen (Status " + res.status + ")");
+        return false;
+      }
+      return true;
+    }catch(e){
+      showError("Verbindung zum Speicher verloren.");
+      return false;
+    }
+  }
+
+  settingsBtn.addEventListener('click', () => {
+    const showing = settingsPanel.style.display !== 'none';
+    if(showing){
+      settingsPanel.style.display = 'none';
+    }else{
+      settingsTitleInput.value = pageTitle.textContent;
+      settingsSubInput.value = pageSub.textContent;
+      settingsPanel.style.display = 'grid';
+    }
+  });
+
+  settingsSaveBtn.addEventListener('click', async () => {
+    const title = settingsTitleInput.value.trim();
+    const subtitle = settingsSubInput.value.trim();
+    if(!title){ showError("Überschrift darf nicht leer sein."); return; }
+    settingsSaveBtn.disabled = true;
+    const ok = await saveSettings(title, subtitle);
+    if(ok){
+      pageTitle.textContent = title;
+      pageSub.textContent = subtitle;
+      settingsPanel.style.display = 'none';
+    }
+    settingsSaveBtn.disabled = false;
+  });
+
   function toLocalDateStr(ts){
     const d = new Date(ts);
     const y = d.getFullYear();
@@ -466,6 +578,9 @@
       const rankClass = rank <= 3 ? "rank-" + rank : "";
       const pct = Math.min(100, (e.promille / max) * 100);
       const medal = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : rank;
+      const deleteBtn = unlocked
+        ? `<button type="button" class="delete-btn" data-ts="${e.ts}" title="Eintrag löschen">✕</button>`
+        : '';
       return `
         <div class="entry ${rankClass}">
           <div class="rank">${medal}</div>
@@ -475,9 +590,40 @@
             <div class="entry-time">${e.ts ? formatEntryTime(e.ts) : ''}</div>
           </div>
           <div class="promille">${e.promille.toFixed(2)}<span>‰</span></div>
+          ${deleteBtn}
         </div>`;
     }).join('');
   }
+
+  let deleteArmedTs = null;
+  listEl.addEventListener('click', async (ev) => {
+    const btn = ev.target.closest('.delete-btn');
+    if(!btn) return;
+    const ts = btn.getAttribute('data-ts');
+    if(deleteArmedTs !== ts){
+      deleteArmedTs = ts;
+      btn.classList.add('armed');
+      btn.textContent = '✓';
+      setTimeout(() => { if(deleteArmedTs === ts){ deleteArmedTs = null; render(); } }, 3500);
+      return;
+    }
+    deleteArmedTs = null;
+    btn.disabled = true;
+    try{
+      if(storageAvailable){
+        const res = await fetch(`${FIREBASE_URL}/${STORAGE_KEY}.json?t=${Date.now()}`).catch(() => null);
+        if(res && res.ok){
+          const data = await res.json();
+          entries = Array.isArray(data) ? data : (data ? Object.values(data) : entries);
+        }
+      }
+      entries = entries.filter(e => String(e.ts) !== ts);
+      await saveEntries();
+      render();
+    }catch(e){
+      showError("Löschen hat nicht geklappt.");
+    }
+  });
 
   dayFilterInput.addEventListener('change', () => {
     dayFilterClear.classList.toggle('active', dayFilterInput.value !== '');
@@ -604,6 +750,7 @@
   });
 
   // alle paar Sekunden neu laden, damit Einträge von anderen Handys auftauchen (Lesen geht immer, auch ohne Token)
+  loadSettings();
   loadEntries().then(() => { if(!storageAvailable) showSetupScreen(); });
   setInterval(loadEntries, 5000);
 </script>
