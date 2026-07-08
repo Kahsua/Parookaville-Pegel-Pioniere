@@ -84,6 +84,11 @@
     font-size:13px;
     margin-top:4px;
   }
+  .location-link{
+    color:var(--lime);
+    text-decoration:underline;
+    font-weight:700;
+  }
 
   main{
     max-width:520px;
@@ -512,10 +517,22 @@
     }
   }
 
+  function linkifyText(str){
+    const escaped = escapeHtml(str);
+    const urlPattern = /(https?:\/\/[^\s]+)/g;
+    return escaped.replace(urlPattern, (url) => {
+      // Satzzeichen am Ende (. , ) etc.) nicht mit in den Link ziehen
+      const trailingMatch = url.match(/[.,!?)]+$/);
+      const trailing = trailingMatch ? trailingMatch[0] : '';
+      const cleanUrl = trailing ? url.slice(0, -trailing.length) : url;
+      return `<a href="${cleanUrl}" target="_blank" rel="noopener noreferrer" class="location-link">Link öffnen</a>${trailing}`;
+    });
+  }
+
   function applyLocationDisplay(location, description){
     if(location){
-      locationName.textContent = location;
-      locationDesc.textContent = description || '';
+      locationName.innerHTML = linkifyText(location);
+      locationDesc.innerHTML = description ? linkifyText(description) : '';
       locationBox.style.display = 'block';
     }else{
       locationBox.style.display = 'none';
