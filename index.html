@@ -64,6 +64,26 @@
     border-radius:999px;
   }
   .share-btn:active{ border-color:var(--lime); }
+  .location-box{
+    max-width:440px;
+    margin:14px auto 0;
+    background:var(--bg-panel);
+    border:1px solid rgba(212,255,61,0.35);
+    border-radius:14px;
+    padding:12px 16px;
+    text-align:center;
+  }
+  .location-name{
+    color:var(--lime);
+    font-weight:800;
+    font-size:15px;
+  }
+  .location-name::before{ content:"📍 "; }
+  .location-desc{
+    color:var(--muted);
+    font-size:13px;
+    margin-top:4px;
+  }
 
   main{
     max-width:520px;
@@ -322,6 +342,10 @@
   <div class="eyebrow">Parookaville · Feldmessung</div>
   <h1 id="pageTitle">PROMILLE-BOARD</h1>
   <div class="sub" id="pageSub">Wer pustet am härtesten? Live-Bestenliste fürs ganze Camp.</div>
+  <div id="locationBox" class="location-box" style="display:none;">
+    <div id="locationName" class="location-name"></div>
+    <div id="locationDesc" class="location-desc"></div>
+  </div>
   <button type="button" id="shareBtn" class="share-btn">🔗 Liste teilen</button>
 </header>
 
@@ -356,6 +380,8 @@
   <div id="settingsPanel" style="display:none;">
     <input id="settingsTitleInput" type="text" placeholder="Überschrift, z.B. PROMILLE-BOARD" maxlength="40">
     <input id="settingsSubInput" type="text" placeholder="Subline-Text" maxlength="100">
+    <input id="settingsLocationInput" type="text" placeholder="Standort, z.B. Zone C · Platz 42" maxlength="60">
+    <input id="settingsLocationDescInput" type="text" placeholder="Kurzbeschreibung, z.B. neben dem Bierwagen, gelbes Zelt" maxlength="120">
     <button type="button" class="add-btn" id="settingsSaveBtn">Speichern</button>
   </div>
   <div class="error" id="errorMsg"></div>
@@ -363,7 +389,7 @@
 
 <script>
   // PIN vor dem Festival ändern und nur an eure Crew geben
-  const EDIT_PIN = "2026";
+  const EDIT_PIN = "2910";
   const STORAGE_KEY = "leaderboard";
   // Eure Firebase Realtime Database URL (ohne "/leaderboard" o.ä. am Ende)
   const FIREBASE_URL = "https://parookaville-baf4d-default-rtdb.europe-west1.firebasedatabase.app";
@@ -383,9 +409,14 @@
   const settingsPanel = document.getElementById('settingsPanel');
   const settingsTitleInput = document.getElementById('settingsTitleInput');
   const settingsSubInput = document.getElementById('settingsSubInput');
+  const settingsLocationInput = document.getElementById('settingsLocationInput');
+  const settingsLocationDescInput = document.getElementById('settingsLocationDescInput');
   const settingsSaveBtn = document.getElementById('settingsSaveBtn');
   const pageTitle = document.getElementById('pageTitle');
   const pageSub = document.getElementById('pageSub');
+  const locationBox = document.getElementById('locationBox');
+  const locationName = document.getElementById('locationName');
+  const locationDesc = document.getElementById('locationDesc');
   const lockedBar = document.getElementById('lockedBar');
   const unlockBtn = document.getElementById('unlockBtn');
   const pinForm = document.getElementById('pinForm');
@@ -481,6 +512,16 @@
     }
   }
 
+  function applyLocationDisplay(location, description){
+    if(location){
+      locationName.textContent = location;
+      locationDesc.textContent = description || '';
+      locationBox.style.display = 'block';
+    }else{
+      locationBox.style.display = 'none';
+    }
+  }
+
   async function loadSettings(){
     if(!storageAvailable) return;
     try{
@@ -489,19 +530,20 @@
         const data = await res.json();
         if(data && data.title){ pageTitle.textContent = data.title; }
         if(data && data.subtitle){ pageSub.textContent = data.subtitle; }
+        applyLocationDisplay(data && data.location, data && data.locationDesc);
       }
     }catch(e){
       // Netzwerkfehler: Standardtexte behalten
     }
   }
 
-  async function saveSettings(title, subtitle){
+  async function saveSettings(title, subtitle, location, locationDesc){
     if(!storageAvailable){ showError("Kein Speicher eingerichtet."); return false; }
     try{
       const res = await fetch(`${FIREBASE_URL}/pageSettings.json`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, subtitle })
+        body: JSON.stringify({ title, subtitle, location, locationDesc })
       });
       if(!res.ok){
         showError("Speichern der Einstellungen fehlgeschlagen (Status " + res.status + ")");
@@ -521,6 +563,8 @@
     }else{
       settingsTitleInput.value = pageTitle.textContent;
       settingsSubInput.value = pageSub.textContent;
+      settingsLocationInput.value = locationName.textContent;
+      settingsLocationDescInput.value = locationDesc.textContent;
       settingsPanel.style.display = 'grid';
     }
   });
@@ -528,12 +572,15 @@
   settingsSaveBtn.addEventListener('click', async () => {
     const title = settingsTitleInput.value.trim();
     const subtitle = settingsSubInput.value.trim();
+    const location = settingsLocationInput.value.trim();
+    const locDesc = settingsLocationDescInput.value.trim();
     if(!title){ showError("Überschrift darf nicht leer sein."); return; }
     settingsSaveBtn.disabled = true;
-    const ok = await saveSettings(title, subtitle);
+    const ok = await saveSettings(title, subtitle, location, locDesc);
     if(ok){
       pageTitle.textContent = title;
       pageSub.textContent = subtitle;
+      applyLocationDisplay(location, locDesc);
       settingsPanel.style.display = 'none';
     }
     settingsSaveBtn.disabled = false;
